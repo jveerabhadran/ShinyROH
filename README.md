@@ -15,7 +15,9 @@ This repository contains a Shiny application and a set of scripts to process and
 **ShinyROH** is an interactive web application designed to process and analyze SNP data to detect ROH (Runs of Homozygosity). It calculates ROH lengths and LOD scores to classify different ROH segments. By leveraging parallel computing, ShinyROH efficiently processes large SNP datasets.
 
 The app allows users to:
+
 - Upload SNP genotype data in the given format:
+
 | rsid          | chromosome | position | allele1 | allele2 |
 |---------------|------------|----------|---------|---------|
 | rs547237130   | 1          | 72526    | A       | A       |
@@ -24,7 +26,8 @@ The app allows users to:
 | rs3131972     | 1          | 752721   | A       | G       |
 | rs200599638   | 1          | 752918   | G       | G       |
 
-- Process data using bootstrap-based allele frequency estimation, that gives the table and extra column:
+- Process data using bootstrap-based allele frequency estimation, which adds an extra column (`genotype`) to the table:
+
 | rsid          | chromosome | position | allele1 | allele2 | genotype |
 |---------------|------------|----------|---------|---------|----------|
 | rs547237130   | 1          | 72526    | A       | A       | 0        |
@@ -32,6 +35,7 @@ The app allows users to:
 | rs575203260   | 1          | 567693   | T       | T       | 0        |
 | rs3131972     | 1          | 752721   | A       | G       | 1        |
 | rs200599638   | 1          | 752918   | G       | G       | 0        |
+
 
 - Compute ROH classifications using a Gaussian Mixture Model (GMM)
 - Visualize ROH data using interactive plots
