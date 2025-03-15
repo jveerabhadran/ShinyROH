@@ -91,22 +91,27 @@ server <- function(input, output, session) {
     return(data_long)
   }
   
-  # Load inbuilt data files for Classes A, B, and C
-  classA_path <- "C:/Users/jyoth/OneDrive/Desktop/PG/BINP29/Population_Genetics/App/data/classA.txt"
-  classB_path <- "C:/Users/jyoth/OneDrive/Desktop/PG/BINP29/Population_Genetics/App/data/classB.txt"
-  classC_path <- "C:/Users/jyoth/OneDrive/Desktop/PG/BINP29/Population_Genetics/App/data/classC.txt"
+  # URL of the file on GitHub
+  classA_url <- "https://raw.githubusercontent.com/jveerabhadran/BINP29_Population_Genetics/main/data/class_data_files/classA.txt"
+  classB_url <- "https://raw.githubusercontent.com/jveerabhadran/BINP29_Population_Genetics/main/data/class_data_files/classB.txt"
+  classC_url <- "https://raw.githubusercontent.com/jveerabhadran/BINP29_Population_Genetics/main/data/class_data_files/classC.txt"
   
-  # Check if files exist at the specified location
-  if (!file.exists(classA_path) | !file.exists(classB_path) | !file.exists(classC_path)) {
-    stop("One or more class files (classA.txt, classB.txt, classC.txt) are missing in the data directory!")
-  }
+  # Define the local path to save the downloaded file
+  classA_path <- "classA.txt"
+  classB_path <- "classB.txt"
+  classC_path <- "classC.txt"
   
-  # Load the inbuilt data into data frames
+  # Download the files
+  download.file(classA_url, classA_path)
+  download.file(classB_url, classB_path)
+  download.file(classC_url, classC_path)
+  
+  # Read the downloaded files into R
   classA <- read.table(classA_path, header = TRUE, sep = "\t")
   classB <- read.table(classB_path, header = TRUE, sep = "\t")
   classC <- read.table(classC_path, header = TRUE, sep = "\t")
   
-  # Reshape the inbuilt data for plotting
+  # Reshape the class data for plotting
   classA_long <- reshape_data(classA, "Class A")
   classB_long <- reshape_data(classB, "Class B")
   classC_long <- reshape_data(classC, "Class C")
@@ -155,7 +160,7 @@ server <- function(input, output, session) {
         user_worldwide_data_combined <- bind_rows(user_worldwide_data1, user_worldwide_data2)  # Both User Data 1 and User Data 2
       }
       
-      # Combine reshaped inbuilt data with user data after user input
+      # Combine reshaped class data with user data after user input
       all_worldwide_data <- bind_rows(classA_long, classB_long, classC_long, user_worldwide_data_combined)
       all_worldwide_data <- as.data.frame(all_worldwide_data)
       all_worldwide_data_clean <- na.omit(all_worldwide_data)
@@ -180,15 +185,15 @@ server <- function(input, output, session) {
                 legend.text = element_text(size = 9), 
                 legend.key.size = unit(0.5, "cm")) +
           guides(fill = guide_legend(nrow = 1))
-       
+        
         ggplotly(plot) # Convert to interactive plot
         
       })
       
     }, error = function(e) {
       showNotification(paste("Error: ", e$message), type = "error")
-      })
     })
+  })
   
   # Function to process SNP data
   process_snp_data <- function(file) {
