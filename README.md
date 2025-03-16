@@ -69,7 +69,12 @@ Here's how you can install and run the ShinyROH app from GitHub:
    ```
    Replace `"path_to_app"` with the actual path where the app is located in your local computer.
 
-6. **Upload Data & Analyze**  
+6. **Upload Data & Analyze**
+   ## Homepage Preview  
+Below is a preview of the application's homepage:  
+
+![Homepage Screenshot](img/homepage_1.png)
+
    - Upload your SNP genotype data in the specified format.
    - Configure processing parameters.
    - View and download results.
