@@ -44,7 +44,7 @@ Here's how you can install and run the ShinyROH app from GitHub:
 1. **Clone the Repository**  
    Open a terminal or command prompt and run the following command to clone the repository:
    ```sh
-   git clone https://github.com/jveerabhadran/BINP29_Population_Genetics.git
+   git clone https://github.com/jveerabhadran/ShinyROH.git
    ```
 
 2. **Navigate to the Project Directory**  
