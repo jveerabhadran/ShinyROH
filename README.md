@@ -78,6 +78,7 @@ Below is a preview of the application's homepage:
    - Upload your SNP genotype data in the specified format.
    - Configure processing parameters.
    - View and download results.
+
 ![Homepage Screenshot](img/homepage_2.png)
 
 ## License
