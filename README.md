@@ -15,9 +15,15 @@ This repository contains a Shiny application and a set of scripts to process and
 **ShinyROH** is an interactive web application designed to process and analyze SNP data to detect ROH (Runs of Homozygosity). It calculates ROH lengths and LOD scores to classify different ROH segments. By leveraging parallel computing, ShinyROH efficiently processes large SNP datasets.
 
 The app allows users to:
-
-- Upload SNP genotype data in the given format:
-
+- Upload SNP genotype data
+- Process data using bootstrap-based allele frequency estimation
+- Compute ROH classifications using a Gaussian Mixture Model (GMM)
+- Visualize ROH data using interactive plots
+- Compare ROH lengths and distributions across chromosomes
+- Place user input data in a worldwide ROH distribution plot
+  
+## File Processing
+ShinyROH requires SNP genotype data in a structured format: 
 | rsid          | chromosome | position | allele1 | allele2 |
 |---------------|------------|----------|---------|---------|
 | rs547237130   | 1          | 72526    | A       | A       |
@@ -25,36 +31,50 @@ The app allows users to:
 | rs575203260   | 1          | 567693   | T       | T       |
 | rs3131972     | 1          | 752721   | A       | G       |
 | rs200599638   | 1          | 752918   | G       | G       |
-
-- Process data using bootstrap-based allele frequency estimation, which adds an extra column (`genotype`) to the table:
-
-| rsid          | chromosome | position | allele1 | allele2 | genotype |
-|---------------|------------|----------|---------|---------|----------|
-| rs547237130   | 1          | 72526    | A       | A       | 0        |
-| rs562180473   | 1          | 565703   | A       | A       | 0        |
-| rs575203260   | 1          | 567693   | T       | T       | 0        |
-| rs3131972     | 1          | 752721   | A       | G       | 1        |
-| rs200599638   | 1          | 752918   | G       | G       | 0        |
-
-
-- Compute ROH classifications using a Gaussian Mixture Model (GMM)
-- Visualize ROH data using interactive plots
-- Compare ROH lengths and distributions across chromosomes
-- Place user input data in a worldwide ROH distribution plot
+Users must provide input files in tab-separated (.txt) format with five essential columns: rsid, chromosome, position, allele1, and allele2. The application automatically detects column headers and validates file integrity before processing.
 
 ## Installation
-
 ### Prerequisites
 Before running the app, ensure that you have the following software installed:
 
 - **R** version 4.4.2 or higher
 - **RStudio** (latest version recommended)
 
-### Required libraries
-To run this app, ensure that you have the following R libraries installed:
+Here's how you can install and run the ShinyROH app from GitHub:
+### Installation Steps
 
-```r
-install.packages(c("shiny", "data.table", "gtools", "tidyr", "dplyr", "mclust", 
-                   "MASS", "ggplot2", "plotly", "DT", "future.apply"))
+1. **Clone the Repository**  
+   Open a terminal or command prompt and run the following command to clone the repository:
+   ```sh
+   git clone https://github.com/your-username/ShinyROH.git
+   ```
 
+2. **Navigate to the Project Directory**  
+   ```sh
+   cd ShinyROH
+   ```
 
+3. **Open RStudio**  
+   - Open `RStudio` and set the working directory to the cloned repository folder.
+
+4. **Install Required Libraries**  
+   Ensure all required R libraries are installed by running:
+   ```r
+   install.packages(c("shiny", "data.table", "gtools", "tidyr", "dplyr", "mclust", 
+                      "MASS", "ggplot2", "plotly", "DT", "future.apply"))
+   ```
+
+5. **Run the Application**  
+   Start the Shiny app with:
+   ```r
+   shiny::runApp("path_to_app")
+   ```
+   Replace `"path_to_app"` with the actual path where the app is located in your local computer.
+
+6. **Upload Data & Analyze**  
+   - Upload your SNP genotype data in the specified format.
+   - Configure processing parameters.
+   - View and download results.
+
+## License
+This software is released under an open-use policy, allowing users to freely use. We kindly request that all users and developers acknowledge its use in their work by citing the repository link.
