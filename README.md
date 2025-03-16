@@ -1,15 +1,11 @@
 
-README file
-
 This repository contains a Shiny application and a set of scripts to process and analyze population genetics data, specifically focusing on SNP (Single Nucleotide Polymorphism) data for detecting Runs of Homozygosity (ROH). The app performs statistical analysis, visualizations, and allows comparisons of genetic datasets.
 
 ## Table of Contents
 1. [Introduction](#introduction)
-2. [Installation](#installation)
-3. [Required Libraries](#required-libraries)
-4. [File Processing](#file-processing)
-5. [Usage](#usage)
-6. [License](#license)
+2. [File Processing](#file-processing)
+3. [Installation](#installation)
+4. [License](#license)
 
 ## Introduction
 **ShinyROH** is an interactive web application designed to process and analyze SNP data to detect ROH (Runs of Homozygosity). It calculates ROH lengths and LOD scores to classify different ROH segments. By leveraging parallel computing, ShinyROH efficiently processes large SNP datasets.
@@ -31,7 +27,8 @@ ShinyROH requires SNP genotype data in a structured format:
 | rs575203260   | 1          | 567693   | T       | T       |
 | rs3131972     | 1          | 752721   | A       | G       |
 | rs200599638   | 1          | 752918   | G       | G       |
-Users must provide input files in tab-separated (.txt) format with five essential columns: rsid, chromosome, position, allele1, and allele2. The application automatically detects column headers and validates file integrity before processing.
+
+Users must provide input files in tab-separated (.txt) format with five essential columns: rsid, chromosome, position, allele1, and allele2. The application automatically detects column headers and validates file integrity before processing. You can find a bash script that can do preprocessing for the raw data (of specific format).
 
 ## Installation
 ### Prerequisites
@@ -41,12 +38,13 @@ Before running the app, ensure that you have the following software installed:
 - **RStudio** (latest version recommended)
 
 Here's how you can install and run the ShinyROH app from GitHub:
+
 ### Installation Steps
 
 1. **Clone the Repository**  
    Open a terminal or command prompt and run the following command to clone the repository:
    ```sh
-   git clone https://github.com/your-username/ShinyROH.git
+   git clone https://github.com/jveerabhadran/BINP29_Population_Genetics.git
    ```
 
 2. **Navigate to the Project Directory**  
