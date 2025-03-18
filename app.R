@@ -125,7 +125,15 @@ server <- function(input, output, session) {
       
       # Process User Data 1
       user_worldwide_data1 <- future_lapply(input$file1_worldwide$datapath, function(file) {
-        read.table(file, header = TRUE, sep = "\t") %>%
+        data <- read.table(file, header = TRUE, sep = "\t")
+        
+        # Check if the file is empty
+        if (nrow(data) == 0) {
+          showNotification("Error: User Data 1 file is empty.", type = "error")
+          return(NULL)
+        }
+        
+        data %>%
           mutate(ROH_Frequency = roh_freq) %>%
           select(Class = roh_class, ROH_Frequency) %>%
           mutate(Class = gsub("Class A \\(Short ROH\\)", "Class A", Class),
@@ -138,7 +146,15 @@ server <- function(input, output, session) {
       user_worldwide_data2 <- NULL
       if (!is.null(input$file2_worldwide)) {
         user_worldwide_data2 <- future_lapply(input$file2_worldwide$datapath, function(file) {
-          read.table(file, header = TRUE, sep = "\t") %>%
+          data <- read.table(file, header = TRUE, sep = "\t")
+          
+          # Check if the file is empty
+          if (nrow(data) == 0) {
+            showNotification("Error: User Data 2 file is empty.", type = "error")
+            return(NULL)
+          }
+          
+          data %>%
             mutate(ROH_Frequency = roh_freq) %>%
             select(Class = roh_class, ROH_Frequency) %>%
             mutate(Class = gsub("Class A \\(Short ROH\\)", "Class A", Class),
@@ -146,11 +162,6 @@ server <- function(input, output, session) {
                    Class = gsub("Class C \\(Long ROH\\)", "Class C", Class),
                    Region = "User Data 2")
         })
-      }
-      
-      # Check if User Data 1 is valid
-      if (is.null(user_worldwide_data1) || length(user_worldwide_data1) == 0) {
-        stop("User Data 1 is missing or invalid.")
       }
       
       # Combine both user data sets (only if file2 exists and is not NULL)
@@ -194,15 +205,79 @@ server <- function(input, output, session) {
   
   # Function to process SNP data
   process_snp_data <- function(file) {
-    data <- fread(file$datapath, header = TRUE, sep = "\t")
+    if (is.null(file) || !file.exists(file$datapath)) {
+      showModal(modalDialog(
+        title = "Error",
+        "File not found! Please upload a valid file.",
+        easyClose = TRUE
+      ))
+      return(NULL)  # Stop processing but keep the app running
+    }
+    
+    # Attempt to read the file
+    data <- tryCatch({
+      fread(file$datapath, header = TRUE, sep = "\t")
+    }, error = function(e) {
+      showModal(modalDialog(
+        title = "Error",
+        "Incorrect file format! See the GitHub README.md file for the required format.",
+        easyClose = TRUE
+      ))
+      return(NULL)  # Stop processing but keep the app running
+    })
+    
+    # Ensure the file was read successfully
+    if (is.null(data)) return(NULL)
+    
+    # Check for required columns
+    required_cols <- c("rsid", "allele1", "allele2", "chromosome", "position")
+    missing_cols <- setdiff(required_cols, names(data))
+    if (length(missing_cols) > 0) {
+      showModal(modalDialog(
+        title = "Error",
+        paste("Incorrect file format! Missing required columns:", paste(missing_cols, collapse = ", "), 
+              "<br> See the GitHub README.md file for details."),
+        easyClose = TRUE,
+        footer = modalButton("OK")
+      ))
+      return(NULL)
+    }
+    
+    # Convert columns to correct data types
+    data[, `:=`(
+      chromosome = as.integer(chromosome),
+      position = as.numeric(position)
+    )]
+    
+    # Remove rows with missing values
     data <- na.omit(data)
+    
+    # Validate autosomal chromosome range (1-22)
+    if (any(!data$chromosome %in% 1:22)) {
+      showModal(modalDialog(
+        title = "Error",
+        "Invalid chromosome values detected! Chromosome values must be between 1 and 22.",
+        easyClose = TRUE
+      ))
+      return(NULL)
+    }
+    
+    # Calculate genotype
     data[, genotype := fifelse(allele1 == allele2, 0, 1)]
-    data <- data[chromosome %in% 1:22]
     
     # Bootstrap function for allele frequencies
     bootstrap_allele_freq <- function(data, n_boot = 10) {
+      if (nrow(data) < 10) {
+        showModal(modalDialog(
+          title = "Error",
+          "Not enough data for bootstrapping. Please upload a larger dataset.",
+          easyClose = TRUE
+        ))
+        return(NULL)
+      }
+      
       boot_res <- future_lapply(1:n_boot, function(i) {
-        sample_data <- data[sample(.N, .N, replace = TRUE)]  # Resample data with replacement
+        sample_data <- data[sample(.N, .N, replace = TRUE)]
         sample_data[, .(
           pA = (sum(allele1 == "A") + sum(allele2 == "A")) / (2 * .N),
           pG = (sum(allele1 == "G") + sum(allele2 == "G")) / (2 * .N),
@@ -211,20 +286,57 @@ server <- function(input, output, session) {
         ), by = "rsid"]
       }, future.seed = TRUE)
       
-      rbindlist(boot_res)[, lapply(.SD, mean), by = "rsid"]  # Aggregate the mean allele frequencies
+      result <- rbindlist(boot_res, use.names = TRUE, fill = TRUE)
+      
+      if (nrow(result) == 0) {
+        showModal(modalDialog(
+          title = "Error",
+          "Bootstrap failed to compute allele frequencies.",
+          easyClose = TRUE
+        ))
+        return(NULL)
+      }
+      
+      result[, lapply(.SD, mean), by = "rsid"]
     }
     
-    allele_freqs <- bootstrap_allele_freq(data)
+    # Compute allele frequencies
+    allele_freqs <- tryCatch({
+      bootstrap_allele_freq(data)
+    }, error = function(e) {
+      showModal(modalDialog(
+        title = "Error",
+        paste("Bootstrap computation failed:", e$message),
+        easyClose = TRUE
+      ))
+      return(NULL)
+    })
     
-    # Return both data and calculated frequencies
+    # Ensure allele_freqs is not NULL
+    if (is.null(allele_freqs)) return(NULL)
+    
     return(list(data = data, allele_freqs = allele_freqs))
   }
   
-  # Function to compute LOD scores
+  
+  # Function to compute LOD scores with error handling
   compute_lod_scores_parallel <- function(data, allele_freqs, num_snps = 50, step_snps = 10, error_rate = 0.01) {
+    if (nrow(data) == 0) {
+      stop("Error: Input data is empty.")
+    }
+    
+    if (nrow(allele_freqs) == 0) {
+      stop("Error: Allele frequency data is empty.")
+    }
+    
     results <- future_lapply(unique(data$chromosome), function(chr) {
-      
       chr_data <- data[chromosome == chr][order(position)]
+      
+      if (nrow(chr_data) < num_snps) {
+        warning(paste("Warning: Chromosome", chr, "has fewer SNPs than required. Skipping."))
+        return(NULL)
+      }
+      
       chr_data <- merge(chr_data, allele_freqs, by = "rsid", all.x = TRUE)
       
       # Handle missing allele frequencies
@@ -235,14 +347,12 @@ server <- function(input, output, session) {
         pT = fifelse(is.na(pT) | pT == 0, 0.01, pT)
       )]
       
-      # Initialize the list to store LOD scores
       lod_list <- list()
-      
       start_indices <- seq(1, nrow(chr_data) - num_snps, by = step_snps)
       
       # Loop over the start indices to calculate LOD scores for each segment
       for (i in seq_along(start_indices)) {
-        segment_data <- chr_data[start_indices[i]:(start_indices[i] + num_snps - 1),]
+        segment_data <- chr_data[start_indices[i]:(start_indices[i] + num_snps - 1), ]
         
         segment_data[, `:=`(
           p1 = fifelse(allele1 == "A", pA, 
@@ -261,9 +371,9 @@ server <- function(input, output, session) {
           P_noROH = fifelse(allele1 == allele2, p1^2, 2 * p1 * p2)
         )]
         
-        # Calculate LOD score
-        segment_data[, lod := log10(P_ROH / P_noROH)]
-        segment_data[, lod := fifelse(is.nan(lod), 0, lod)]  # Handle NaN LOD values
+        # Handle zero division and NaN issues
+        segment_data[, lod := fifelse(P_noROH == 0, 0, log10(P_ROH / P_noROH))]
+        segment_data[, lod := fifelse(is.nan(lod) | is.infinite(lod), 0, lod)]
         
         lod_score <- sum(segment_data$lod, na.rm = TRUE)
         
@@ -272,67 +382,127 @@ server <- function(input, output, session) {
           start_snp = segment_data$rsid[1], 
           end_snp = segment_data$rsid[nrow(segment_data)], 
           lod_score = lod_score,
-          roh_length = as.numeric(abs(segment_data$position[nrow(segment_data)] - segment_data$position[1]))
+          roh_length = abs(segment_data$position[nrow(segment_data)] - segment_data$position[1])
         )
       }
       
-      # Return combined results for the chromosome
       return(rbindlist(lod_list, use.names = TRUE, fill = TRUE))
     }, future.seed = TRUE)
     
-    # Combine results from all chromosomes
-    return(rbindlist(results, use.names = TRUE, fill = TRUE))
+    final_results <- rbindlist(results, use.names = TRUE, fill = TRUE)
+    
+    if (nrow(final_results) == 0) {
+      stop("Error: No valid LOD scores were computed.")
+    }
+    
+    return(final_results)
   }
   
   # Function to calculate LOD threshold using KDE
   estimate_lod_threshold <- function(lod_scores) {
-    kde_fit <- density(lod_scores$lod_score, kernel = "gaussian")
-    lod_threshold <- kde_fit$x[which.max(kde_fit$y)]  # Mode of KDE as threshold
-    return(lod_threshold)
+    tryCatch({
+      if (is.null(lod_scores) || !("lod_score" %in% colnames(lod_scores))) {
+        stop("Error: Invalid LOD scores data.")
+      }
+      kde_fit <- density(lod_scores$lod_score, kernel = "gaussian")
+      lod_threshold <- kde_fit$x[which.max(kde_fit$y)]  # Mode of KDE as threshold
+      return(lod_threshold)
+    }, error = function(e) {
+      showModal(modalDialog(title = "Error", paste("LOD threshold estimation failed:", e$message), easyClose = TRUE))
+      return(NA)
+    })
   }
   
   # Function to compute LOD scores
   compute_lod_scores_for_user <- function(data) {
-    lod_data <- compute_lod_scores_parallel(data$data, data$allele_freqs)  # Compute LOD scores
-    return(lod_data)
+    tryCatch({
+      if (is.null(data) || !"data" %in% names(data) || !"allele_freqs" %in% names(data)) {
+        stop("Invalid input data for LOD score calculation.")
+      }
+      lod_data <- compute_lod_scores_parallel(data$data, data$allele_freqs)
+      return(lod_data)
+    }, error = function(e) {
+      showModal(modalDialog(title = "Error", paste("LOD score computation failed:", e$message), easyClose = TRUE))
+      return(NULL)
+    })
   }
   
   # Function to classify ROH based on LOD threshold
   classify_roh <- function(lod_data, lod_threshold) {
-    # Classify based on LOD score and assign roh_class
-    lod_data[, roh_class := ifelse(lod_score >= lod_threshold, "ROH", "Non-ROH")]
-    return(lod_data)
-  }
-  
-  # Function to compute chromosome-level ROH frequency
-  compute_chr_roh_freq <- function(lod_data, autosomal_genome_size) {
-    chr_roh_freq <- lod_data[, .(roh_count = .N, roh_class = unique(roh_class)), by = chromosome]
-    chr_roh_freq[, chr_freq := roh_count / sum(roh_count), by = chromosome]
-    return(chr_roh_freq)
+    tryCatch({
+      if (is.null(lod_data) || !("lod_score" %in% colnames(lod_data))) {
+        stop("Invalid LOD data for classification.")
+      }
+      lod_data[, roh_class := ifelse(lod_score >= lod_threshold, "ROH", "Non-ROH")]
+      return(lod_data)
+    }, error = function(e) {
+      showModal(modalDialog(title = "Error", paste("ROH classification failed:", e$message), easyClose = TRUE))
+      return(NULL)
+    })
   }
   
   # Function to fit GMM model and classify ROH length
   fit_gmm_and_classify <- function(lod_data) {
-    # Fit Gaussian Mixture Model (GMM) to classify ROH lengths into 3 classes
-    gmm_model <- Mclust(lod_data$roh_length, G = 3)
-    
-    # Extract the means of the GMM components and calculate cutoff points
-    component_means <- sort(gmm_model$parameters$mean)
-    cutoff_A_B <- (component_means[1] + component_means[2]) / 2
-    cutoff_B_C <- (component_means[2] + component_means[3]) / 2
-    
-    # Classify ROH based on the cutoffs into 3 categories
-    lod_data[, roh_class := fifelse(roh_length < cutoff_A_B, "Class A (Short ROH)",
-                                    fifelse(roh_length < cutoff_B_C, "Class B (Intermediate ROH)", 
-                                            "Class C (Long ROH)"))]
-    return(lod_data)
+    tryCatch({
+      if (is.null(lod_data) || !"roh_length" %in% colnames(lod_data)) {
+        stop("Invalid data for GMM classification.")
+      }
+      gmm_model <- Mclust(lod_data$roh_length, G = 3)
+      
+      component_means <- sort(gmm_model$parameters$mean)
+      cutoff_A_B <- (component_means[1] + component_means[2]) / 2
+      cutoff_B_C <- (component_means[2] + component_means[3]) / 2
+      
+      lod_data[, roh_class := fifelse(roh_length < cutoff_A_B, "Class A (Short ROH)",
+                                      fifelse(roh_length < cutoff_B_C, "Class B (Intermediate ROH)", 
+                                              "Class C (Long ROH)"))]
+      return(lod_data)
+    }, error = function(e) {
+      showModal(modalDialog(title = "Error", paste("GMM classification failed:", e$message), easyClose = TRUE))
+      return(NULL)
+    })
+  }
+  
+  # Function to compute chromosome-level ROH frequency
+  compute_chr_roh_freq <- function(lod_data, autosomal_genome_size) {
+    tryCatch({
+      if (is.null(lod_data) || !("chromosome" %in% colnames(lod_data))) {
+        stop("Invalid LOD data for chromosome ROH frequency.")
+      }
+      chr_roh_freq <- lod_data[, .(roh_count = .N, roh_class = unique(roh_class)), by = chromosome]
+      chr_roh_freq[, chr_freq := roh_count / sum(roh_count), by = chromosome]
+      return(chr_roh_freq)
+    }, error = function(e) {
+      showModal(modalDialog(title = "Error", paste("Chromosome ROH frequency computation failed:", e$message), easyClose = TRUE))
+      return(NULL)
+    })
   }
   
   # Function to compute SNP-based ROH frequency per chromosome and ROH class
   compute_snp_roh_freq <- function(lod_data) {
-    snp_roh_freq <- lod_data[, .(snp_count = .N, roh_class = unique(roh_class)), by = .(chromosome, roh_class)]
-    snp_roh_freq[, roh_freq := snp_count / sum(snp_count), by = chromosome]
-    return(snp_roh_freq)
+    if (!inherits(lod_data, "data.table")) {
+      stop("Error: Input 'lod_data' must be a data.table.")
+    }
+    
+    required_cols <- c("chromosome", "roh_class")
+    missing_cols <- setdiff(required_cols, names(lod_data))
+    
+    if (length(missing_cols) > 0) {
+      stop(paste("Error: Missing required column(s):", paste(missing_cols, collapse = ", ")))
+    }
+    
+    if (nrow(lod_data) == 0) {
+      warning("Warning: Input data.table is empty. Returning empty result.")
+      return(data.table(chromosome = character(), roh_class = character(), snp_count = integer(), roh_freq = numeric()))
+    }
+    
+    tryCatch({
+      snp_roh_freq <- lod_data[, .(snp_count = .N, roh_class = unique(roh_class)), by = .(chromosome, roh_class)]
+      snp_roh_freq[, roh_freq := snp_count / sum(snp_count), by = chromosome]
+      return(snp_roh_freq)
+    }, error = function(e) {
+      stop(paste("Error while computing SNP ROH frequency:", e$message))
+    })
   }
   
   # Process the SNP data when the button is clicked
@@ -351,71 +521,104 @@ server <- function(input, output, session) {
       return(NULL)
     }
     
-    # Process User 1 (t1) SNP data
-    withProgress(message = 'Processing SNP data for User 1...', {
-      data1 <- process_snp_data(input$file1)  # Process SNP data for User 1
-      lod_data_t1 <- compute_lod_scores_for_user(data1)  # Compute LOD scores
-    })
+    # Error-handling wrapper function
+    safe_process <- function(expr, error_msg) {
+      tryCatch(
+        expr,
+        error = function(e) {
+          showModal(modalDialog(
+            title = "Error",
+            paste(error_msg, "Details:", e$message),
+            easyClose = TRUE
+          ))
+          return(NULL)
+        }
+      )
+    }
     
-    # Process SNP data for User 2 (if exists)
+    # Process SNP Data for User 1
+    lod_data_t1 <- safe_process({
+      withProgress(message = 'Processing SNP data for User 1...', {
+        data1 <- process_snp_data(input$file1)
+        compute_lod_scores_for_user(data1)
+      })
+    }, "Failed to process SNP data for User 1.")
+    
+    if (is.null(lod_data_t1)) return(NULL)
+    
+    # Process User 2 (if file exists)
     lod_data_t2 <- NULL
-    output_t2 <- NULL  # Initialize output for User 2
     if (!is.null(input$file2)) {
       req(input$file2)
       
-      # Validate file format for User 2
       file_extension2 <- tools::file_ext(input$file2$name)
       if (file_extension2 != "txt") {
         showModal(modalDialog(
-          title = "Invalid file format",
+          title = "Invalid File Format",
           "Please upload a .txt file for User 2.",
-          easyClose = TRUE,
-          footer = NULL
+          easyClose = TRUE
         ))
         return(NULL)
       }
       
-      withProgress(message = 'Processing SNP data for User 2...', {
-        data2 <- process_snp_data(input$file2)
-        lod_data_t2 <- compute_lod_scores_for_user(data2)
-      })
+      lod_data_t2 <- safe_process({
+        withProgress(message = 'Processing SNP data for User 2...', {
+          data2 <- process_snp_data(input$file2)
+          compute_lod_scores_for_user(data2)
+        })
+      }, "Failed to process SNP data for User 2.")
+      
+      if (is.null(lod_data_t2)) return(NULL)
     }
     
-    # Calculate LOD thresholds for User 1 and User 2
-    lod_threshold_t1 <- estimate_lod_threshold(lod_data_t1)
-    lod_threshold_t2 <- if (!is.null(lod_data_t2)) estimate_lod_threshold(lod_data_t2) else NA
+    # Compute LOD Thresholds
+    lod_threshold_t1 <- safe_process(estimate_lod_threshold(lod_data_t1),
+                                     "Failed to compute LOD threshold for User 1.")
     
-    # Classify ROH for User 1 and User 2 based on LOD threshold
-    lod_data_t1 <- classify_roh(lod_data_t1, lod_threshold_t1)
+    lod_threshold_t2 <- if (!is.null(lod_data_t2)) {
+      safe_process(estimate_lod_threshold(lod_data_t2),
+                   "Failed to compute LOD threshold for User 2.")
+    } else {
+      NA
+    }
+    
+    # Classify ROH
+    lod_data_t1 <- safe_process(classify_roh(lod_data_t1, lod_threshold_t1),
+                                "Failed to classify ROH for User 1.")
+    
     if (!is.null(lod_data_t2)) {
-      lod_data_t2 <- classify_roh(lod_data_t2, lod_threshold_t2)
+      lod_data_t2 <- safe_process(classify_roh(lod_data_t2, lod_threshold_t2),
+                                  "Failed to classify ROH for User 2.")
     }
     
-    # Constants for autosomal genome size
-    autosomal_genome_size <- 2.8e9  # Human autosome size in base pairs
+    # Compute ROH frequencies
+    autosomal_genome_size <- 2.8e9  # Human autosomal genome size
+    chr_roh_freq_t1 <- safe_process(compute_chr_roh_freq(lod_data_t1, autosomal_genome_size),
+                                    "Failed to compute chromosome ROH frequency for User 1.")
     
-    # Compute ROH frequencies per chromosome for User 1 (T1)
-    chr_roh_freq_t1 <- compute_chr_roh_freq(lod_data_t1, autosomal_genome_size)
-    
-    # If User 2 data exists, compute ROH frequencies for User 2 (T2)
     chr_roh_freq_t2 <- if (!is.null(lod_data_t2)) {
-      compute_chr_roh_freq(lod_data_t2, autosomal_genome_size)
+      safe_process(compute_chr_roh_freq(lod_data_t2, autosomal_genome_size),
+                   "Failed to compute chromosome ROH frequency for User 2.")
     } else {
       NULL
     }
     
-    # Fit GMM models and classify ROH length for User 1 and User 2
-    lod_data_t1 <- fit_gmm_and_classify(lod_data_t1)
+    # Fit GMM models and classify ROH lengths
+    lod_data_t1 <- safe_process(fit_gmm_and_classify(lod_data_t1),
+                                "Failed to fit GMM model for User 1.")
+    
     if (!is.null(lod_data_t2)) {
-      lod_data_t2 <- fit_gmm_and_classify(lod_data_t2)
+      lod_data_t2 <- safe_process(fit_gmm_and_classify(lod_data_t2),
+                                  "Failed to fit GMM model for User 2.")
     }
     
-    # Compute SNP frequencies inside ROHs for User 1 (T1)
-    snp_roh_freq_t1 <- compute_snp_roh_freq(lod_data_t1)
+    # Compute SNP frequencies inside ROHs
+    snp_roh_freq_t1 <- safe_process(compute_snp_roh_freq(lod_data_t1),
+                                    "Failed to compute SNP ROH frequency for User 1.")
     
-    # Compute SNP frequencies inside ROHs for User 2 (T2) if data exists
     snp_roh_freq_t2 <- if (!is.null(lod_data_t2)) {
-      compute_snp_roh_freq(lod_data_t2)
+      safe_process(compute_snp_roh_freq(lod_data_t2),
+                   "Failed to compute SNP ROH frequency for User 2.")
     } else {
       NULL
     }
