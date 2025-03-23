@@ -16,7 +16,7 @@ The app allows users to:
 - Compute ROH classifications using a Gaussian Mixture Model (GMM)
 - Visualize ROH data using interactive plots
 - Compare ROH lengths and distributions across chromosomes
-- Place user input data in a worldwide ROH distribution plot (snp_roh_frequency file is the input for the worldwide plot)
+- Place user input data in a worldwide ROH distribution plot (snp_roh_frequency file, downloaded from the application is the input for the worldwide plot)
   
 ## File Processing
 ShinyROH requires SNP genotype data in a structured format: 
@@ -28,7 +28,7 @@ ShinyROH requires SNP genotype data in a structured format:
 | rs3131972     | 1          | 752721   | A       | G       |
 | rs200599638   | 1          | 752918   | G       | G       |
 
-Users must provide input files in tab-separated (.txt) format with five essential columns: rsid, chromosome, position, allele1, and allele2. The application automatically detects column headers and validates file integrity before processing. You can find a bash script that can do preprocessing for the raw data (of specific format).
+Users must provide input files in tab-separated (.txt) format with five essential columns: rsid, chromosome, position, allele1, and allele2. The application automatically detects column headers and validates file integrity before processing. You can find a bash script that can do preprocessing for the raw data (of specific format). For trying out the app, test input files are given in the data folder.
 
 ## Installation
 ### Prerequisites
