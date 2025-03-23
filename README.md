@@ -28,7 +28,7 @@ ShinyROH requires SNP genotype data in a structured format:
 | rs3131972     | 1          | 752721   | A       | G       |
 | rs200599638   | 1          | 752918   | G       | G       |
 
-Users must provide input files in tab-separated (.txt) format with five essential columns: rsid, chromosome, position, allele1, and allele2. The application automatically detects column headers and validates file integrity before processing. You can find a bash script that can do preprocessing for the raw data (of specific format). For trying out the app, test input files are given in the data folder.
+Users must provide input files in tab-separated (.txt) format with five essential columns: rsid, chromosome, position, allele1, and allele2. The application automatically detects column headers and validates file integrity before processing. You can find a bash script that can do preprocessing for the raw data (of specific format). For trying out the app, test input files are given in the data folder (snp_data_files & worldwide_data_files).
 
 ## Installation
 ### Prerequisites
