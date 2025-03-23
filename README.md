@@ -16,7 +16,7 @@ The app allows users to:
 - Compute ROH classifications using a Gaussian Mixture Model (GMM)
 - Visualize ROH data using interactive plots
 - Compare ROH lengths and distributions across chromosomes
-- Place user input data in a worldwide ROH distribution plot
+- Place user input data in a worldwide ROH distribution plot (snp_roh_frequency file is the input for the worldwide plot)
   
 ## File Processing
 ShinyROH requires SNP genotype data in a structured format: 
